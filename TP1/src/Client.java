@@ -11,12 +11,12 @@ public class Client {
 		
 		User user = new User();
 		user.username = "Georges";
-		user.passord = "Password";
+		user.password = "Password";
 		
-		User.createUser(user);
-		User.createUser(user);
-		User.createUser(user);
-		
+		for(int i = 0; i<10; i++) {
+			User.createUser(user);
+		}
+
 		socket = new Socket(serverAddress, port);
 		
 		DataInputStream in = new DataInputStream(socket.getInputStream());

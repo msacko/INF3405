@@ -10,11 +10,21 @@ import org.json.simple.parser.ParseException;
 public class User {
 	
 	public String username;
-	public String passord;
+	public String password;
 	
 	public static boolean findUser(User user) {
-		/*to do*/
-        return true;
+		JSONArray users = getUsers();
+		if(users == null) {
+			return false;
+		}
+		
+		for (Object obj : users) {
+			JSONObject item = (JSONObject)obj;
+			if(item.get("username") == user.username && item.get("password") == user.password) {
+				return true;
+			}
+		}
+		return false;
 	}
 	
 	public static JSONArray getUsers() {
@@ -29,7 +39,7 @@ public class User {
  
             JSONArray users = (JSONArray) obj;
             System.out.println(users);
-            
+            reader.close();
             return users;
  
         } catch (FileNotFoundException e) {
@@ -39,21 +49,20 @@ public class User {
         } catch (ParseException e) {
             e.printStackTrace();
         }
-        
         return null;
 	}
 	
 	public static void createUser(User user) {
+		JSONArray users = getUsers();
+    	if(users == null) {
+    		users = new JSONArray();
+    	}
+    	
 		//Write JSON file
         try (FileWriter file = new FileWriter("user.json")) {
- 
-        	JSONArray users = getUsers();
-        	if(users == null) {
-        		users = new JSONArray();
-        	}
-        	
         	JSONObject userObj = new JSONObject();
-        	userObj.put(user.username, user.passord);
+        	userObj.put("username", user.username);
+        	userObj.put("password", user.password);
         	users.add(userObj);
             file.write(users.toJSONString());
             file.flush();
