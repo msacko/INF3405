@@ -1,9 +1,18 @@
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.DataOutputStream;
+import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.ByteBuffer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+import javax.imageio.ImageIO;
 
 public class Server {
 	private static ServerSocket listener;
@@ -37,8 +46,16 @@ public class Server {
 			while (true) {
 				// Important : la fonction accept() est bloquante : on attend qu'un prochain
 				// client se connecte
-				// Une nouvelle connection : on incrémente le compteur clientNumber
-				new ClientHandler(listener.accept(), clientNumber++).start();
+				// Une nouvelle connection : on incrémente le compteur clientNumber	
+				
+				Socket socket = listener.accept();
+				new ClientHandler(socket, clientNumber++).start();
+				
+				Server server = new Server();
+				ImageUploadSocketRunnable imgUploadServer = server.new ImageUploadSocketRunnable(socket);
+				//ImageUploadSocketRunnable imgUploadServer = new ImageUploadSocketRunnable(socket);
+			    Thread thread=new Thread(imgUploadServer);
+			    thread.start();
 			}
 		} finally {
 			// Fermeture de la connexion
@@ -46,6 +63,8 @@ public class Server {
 		}
 
 	}
+
+
 	
 	
 	
@@ -99,6 +118,38 @@ public class Server {
 	}
 
 
+	public class ImageUploadSocketRunnable implements Runnable{       
+	    public static final String dir="resources/";
+	    Socket soc=null;
+	   ImageUploadSocketRunnable(Socket soc){
+	     this.soc=soc;
+	   }
+	    @Override
+	    public void run() {
+	    InputStream inputStream = null;
+	       try {
+	           inputStream = this.soc.getInputStream();
+	           System.out.println("Reading: " + System.currentTimeMillis());
+	           byte[] sizeAr = new byte[4];
+	           inputStream.read(sizeAr);
+	           int size = ByteBuffer.wrap(sizeAr).asIntBuffer().get();
+	           byte[] imageAr = new byte[size];
+	           inputStream.read(imageAr);
+	           BufferedImage image = ImageIO.read(new ByteArrayInputStream(imageAr));
+	           System.out.println("Received " + image.getHeight() + "x" + image.getWidth() + ": " + System.currentTimeMillis());
+	           ImageIO.write(image, "jpg", new File(dir+System.currentTimeMillis()+".jpg"));
+	           inputStream.close();
+	       } catch (IOException ex) {
+	           Logger.getLogger(ImageUploadSocketRunnable.class.getName()).log(Level.SEVERE, null, ex);
+	       }
+
+	    }
+
+	    
+	}
+	       
+	       
+	  
 
 }
 
