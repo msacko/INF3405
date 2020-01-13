@@ -21,12 +21,20 @@ public class User {
 		
 		for (Object obj : users) {
 			JSONObject item = (JSONObject)obj;
-			if(item.get("username") == user.username && item.get("password") == user.password) {
-				return true;
+			if(item.get("username") == user.username) {
+				if (item.get("password") == user.password) {
+					return true;					
+				}
+				else {
+					return false;
+				}
 			}
+				
 		}
-		return false;
+		User.createUser(user);
+		return true;
 	}
+	
 	
 	public static JSONArray getUsers() {
 		//JSON parser object to parse read file
@@ -39,8 +47,7 @@ public class User {
             Object obj = jsonParser.parse(reader);
  
             JSONArray users = (JSONArray) obj;
-            System.out.println(users);
-            reader.close();
+            //reader.close();
             return users;
  
         } catch (FileNotFoundException e) {

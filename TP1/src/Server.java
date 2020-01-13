@@ -1,72 +1,97 @@
 import java.awt.image.BufferedImage;
+import java.io.BufferedOutputStream;
 import java.io.ByteArrayInputStream;
-import java.io.DataOutputStream;
-import java.io.File;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.nio.ByteBuffer;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import java.net.UnknownHostException;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.InputMismatchException;
+import java.util.Scanner;
 
 import javax.imageio.ImageIO;
 
 public class Server {
-	private static ServerSocket listener;
-
 	/*
 	 * Application Serveur
 	 */
 	public static void main(String[] args) throws Exception {
-		// Compteur incrémenté à chaque connexion d'un client au serveur
-		int clientNumber = 0;
+		
+		User user = new User();
+		String serverAddress; //i.e "127.0.0.1"
+		int port; //i.e  5000
+		InetAddress serverAddressObj;		
+		Scanner userInput = new Scanner(System.in);
 
-		// Adresse et port du serveur
-		String serverAddress = "127.0.0.1";
-		int serverPort = 5000;
-
-		// Création de la connexion pour communiquer avec les clients
-		listener = new ServerSocket();
-		listener.setReuseAddress(true);
-		InetAddress serverIP = InetAddress.getByName(serverAddress);
-
-		// Association de l'adresse et du port à la connexion
-		listener.bind(new InetSocketAddress(serverIP, serverPort));
-
-		System.out.format("The server is running on %s:%d%n", serverAddress, serverPort);
-
-		try {
-			/*
-			 * A chaque fois qu'un nouveau client se connecte, on exécute la fonction Run()
-			 * de l'objet ClientHandler.
-			 */
-			while (true) {
-				// Important : la fonction accept() est bloquante : on attend qu'un prochain
-				// client se connecte
-				// Une nouvelle connection : on incrémente le compteur clientNumber	
-				
-				Socket socket = listener.accept();
-				new ClientHandler(socket, clientNumber++).start();
-				
-				Server server = new Server();
-				ImageUploadSocketRunnable imgUploadServer = server.new ImageUploadSocketRunnable(socket);
-				//ImageUploadSocketRunnable imgUploadServer = new ImageUploadSocketRunnable(socket);
-			    Thread thread=new Thread(imgUploadServer);
-			    thread.start();
+		/*
+		 * ===================================================================
+		 * Informations sur le serveur founies par l utilisateur (IP address, port)
+		 * ===================================================================
+		 */
+		while(true){
+	        System.out.println("Fournissez svp l addresse IP du serveur");
+	        serverAddress = userInput.nextLine();
+	        
+			try{
+				 serverAddressObj = InetAddress.getByName(serverAddress); //Verification de conformité
+			     System.out.println("Cet IP est valide: Merci");
+			     break;
 			}
-		} finally {
-			// Fermeture de la connexion
-			listener.close();
+			catch(UnknownHostException ex){
+			       System.out.println("Votre IP ne respecte pas le format reconnu. Reessayez une autre");
+			}
 		}
 
+        while (true){
+        	System.out.println("Fournissez svp le port d ecoute");
+   
+        	try{
+	        	port = userInput.nextInt();
+	        	if (port <= 5050 && port >= 5000)
+	        	{
+	        		System.out.println("Ce port est valide: Merci");
+	        		break;
+	        	}
+	        	else System.out.println("Le port doit etre compris entre 5000 et 5050 inclusivement, reessayez");
+	        }
+        	catch (InputMismatchException e)
+        	{
+        		System.out.println("Verifiez le format du port que vous avez entre, donnez en un autre: Merci");
+        		userInput.next();
+        	}
+        	
+        		
+        }
+        
+        /*
+         * ========================================================================================
+         * CONNEXION AVEC LES CLIENTS ET GESTION DES THREADS POUR LA TRANSFORMATION SOBEL DE L IMAGE
+         * ========================================================================================
+         */
+        ServerSocket listener = new ServerSocket();
+        listener.setReuseAddress(true);
+		listener.bind(new InetSocketAddress(serverAddressObj, port));
+		System.out.format("Information: Le serveur tourne sur: %s:%d%n", serverAddress, port);
+		//userInput.close();
+		try {
+			 while (true) {
+				new ClientHandler(listener.accept()).start();
+	        }
+        } finally {
+            listener.close();
+        }
+		
+		
 	}
-
-
-	
-	
+		
 	
 	/*
 	 * Une thread qui se charge de traiter la demande de chaque client
@@ -75,31 +100,90 @@ public class Server {
 	private static class ClientHandler extends Thread
 	{
 		private Socket socket;
-		private int clientNumber; 
+		private User user; 
 		
-		public ClientHandler(Socket socket, int clientNumber)
+		public ClientHandler(Socket socket)
 		{
 			this.socket = socket;
-			this.clientNumber = clientNumber;
-			System.out.println("New connection with client#" + clientNumber + " at " + socket);
 		}
 		
 		/*
-		 * Une thread se charge d'envoyer au client un message de bienvenue
+		 * Une thread se charge d envoyer au client un message de bienvenue
 		 */
-		public void run()
+		public void run() 
 		{
 			try
 			{
-				// Création d'un canal sortant pour envoyer des messages au client
-				DataOutputStream out = new DataOutputStream(socket.getOutputStream());
+				ObjectOutputStream out = new ObjectOutputStream(new BufferedOutputStream(socket.getOutputStream()));
+				ObjectInputStream in = new ObjectInputStream(socket.getInputStream());
 				
-				// Envoie d'un message au client
-				out.writeUTF("Hello from server - you are client#" + clientNumber);
+				int taille = 0;
+				BufferedImage image = null;
 				
-			} catch (IOException e)
-			{
-				System.out.println("Error handling client# " + clientNumber + ": " + e);
+				// Verification du login
+				String message = null;
+				try {
+					message = in.readObject().toString();
+				} catch (ClassNotFoundException e2) {
+					e2.printStackTrace();
+				}
+				user.username = message.split(":")[0];
+				user.password = message.split(":")[1];
+				if (User.findUser(user)) {
+					System.out.println("La connexion est validee");
+	            	out.writeObject("true");
+	            	out.flush();
+				}
+				else {
+					System.out.println("La connexion est refusee");
+	            	out.writeObject("false");
+	            	out.flush();
+				}
+				
+				// GESTION DE L IMAGE
+				try {
+	                String nomImage = in.readObject().toString();
+					String tailleString;
+					
+					tailleString = in.readObject().toString();
+					taille = Integer.parseInt(tailleString);
+					out.writeObject("Nous avons les informations sur la taille");
+					out.flush();
+					
+					byte[] tableauImage = (byte[]) in.readObject();
+					InputStream byteArrayInputStream = new ByteArrayInputStream(tableauImage);
+					image = ImageIO.read(byteArrayInputStream);
+		          
+					String ipPort = socket.getRemoteSocketAddress().toString();
+					DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
+					Date date = new Date();;
+					System.out.println("[" + this.user + " - " + ipPort + " - " + dateFormat.format(date) + "] Image " + nomImage + " bien recue");
+					out.writeObject("image recue");
+					out.flush();
+                 } catch (ClassNotFoundException e1) {
+					e1.printStackTrace();
+				 }
+				
+					// TRANSFORMATION SOBET ET RETOUR DE L IMAGE TRAITEE
+                
+				try {
+					BufferedImage imageSobel = Sobel.process(image);
+					ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+	           	 	ImageIO.write(imageSobel, "jpg", byteArrayOutputStream);
+	           	 	
+		           	int sobelSize = byteArrayOutputStream.size();
+		        	out.writeObject(sobelSize);
+		        	out.flush();
+		        	byte tableauSobel[] = byteArrayOutputStream.toByteArray();
+		        	out.write(tableauSobel, 0, sobelSize);
+		        	out.flush();
+				} catch (IOException e) {
+		            System.out.println("Gestion erreur client: " + e);
+		        }
+			} catch (IOException e) {
+				System.out.println("Gestion erreur client: " + e);
+			} catch (NumberFormatException e) {
+				e.printStackTrace();
 			}
 			finally
 			{
@@ -110,47 +194,13 @@ public class Server {
 				}
 				catch (IOException e)
 				{
-					System.out.println("Couldn't close a socket, what's going on?");
+					System.out.println("Ne peut pas fermer la connexion. Qu est ce qui ne va pas?");
 				}
-				System.out.println("Connection with client# " + clientNumber + " closed");
+				System.out.println("Connexion avec le client fermee");
 			}
 		}
 	}
-
-
-	public class ImageUploadSocketRunnable implements Runnable{       
-	    public static final String dir="resources/";
-	    Socket soc=null;
-	   ImageUploadSocketRunnable(Socket soc){
-	     this.soc=soc;
-	   }
-	    @Override
-	    public void run() {
-	    InputStream inputStream = null;
-	       try {
-	           inputStream = this.soc.getInputStream();
-	           System.out.println("Reading: " + System.currentTimeMillis());
-	           byte[] sizeAr = new byte[4];
-	           inputStream.read(sizeAr);
-	           int size = ByteBuffer.wrap(sizeAr).asIntBuffer().get();
-	           byte[] imageAr = new byte[size];
-	           inputStream.read(imageAr);
-	           BufferedImage image = ImageIO.read(new ByteArrayInputStream(imageAr));
-	           System.out.println("Received " + image.getHeight() + "x" + image.getWidth() + ": " + System.currentTimeMillis());
-	           ImageIO.write(image, "jpg", new File(dir+System.currentTimeMillis()+".jpg"));
-	           inputStream.close();
-	       } catch (IOException ex) {
-	           Logger.getLogger(ImageUploadSocketRunnable.class.getName()).log(Level.SEVERE, null, ex);
-	       }
-
-	    }
-
-	    
-	}
-	       
-	       
-	  
-
+	      
 }
 
 
