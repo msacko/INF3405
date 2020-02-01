@@ -12,26 +12,32 @@ public class User {
 	
 	public String username;
 	public String password;
-	
-	public static boolean findUser(User user) {
+
+	public static boolean Login(User user) {
 		JSONArray users = getUsers();
 		if(users == null) {
-			return false;
+			User.createUser(user, users);
+			return true;
 		}
 		
 		for (Object obj : users) {
+			
 			JSONObject item = (JSONObject)obj;
-			if(item.get("username") == user.username) {
-				if (item.get("password") == user.password) {
+			
+			String _username = item.get("username").toString();
+				
+			if(item.get("username").toString().equals(user.username)) {
+				if (item.get("password").toString().equals(user.password)) {
 					return true;					
 				}
 				else {
 					return false;
 				}
-			}
-				
+			}	
 		}
-		User.createUser(user);
+		
+		
+		User.createUser(user, users);
 		return true;
 	}
 	
@@ -60,8 +66,7 @@ public class User {
         return null;
 	}
 	
-	public static void createUser(User user) {
-		JSONArray users = getUsers();
+	public static void createUser(User user, JSONArray users) {
     	if(users == null) {
     		users = new JSONArray();
     	}

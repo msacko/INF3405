@@ -4,6 +4,6 @@
 	<classpathentry kind="src" path="src"/>
 	<classpathentry kind="src" path="ExternalLibraries"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
-	<classpathentry kind="lib" path="C:/Users/hp1/Documents/INF3405/TP1/ExternalLibraries/json-simple-1.1.1.jar"/>
+	<classpathentry kind="lib" path="C:/Poly/INF3405/TP1/ExternalLibraries/json-simple-1.1.1.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
