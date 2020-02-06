@@ -29,60 +29,13 @@ public class Server {
 	 * Application Serveur
 	 */
 	public static void main(String[] args) throws Exception {
-		String serverAddress; // i.e "127.0.0.1"
-
-		int port; // i.e 5000
-		InetAddress serverAddressObj;
 		Scanner userInput = new Scanner(System.in);
 		
-		
-
-		/*
-		 * ===================================================================
-		 * Informations sur le serveur founies par l utilisateur (IP address, port)
-		 * ===================================================================
-		 */
-		while (true) {
-			System.out.println("Fournissez svp l addresse IP du serveur");
-			serverAddress = userInput.nextLine();
-
-			try {
-				serverAddressObj = InetAddress.getByName(serverAddress); // Verification de conformité
-				System.out.println("Cet IP est valide: Merci");
-				break;
-			} catch (UnknownHostException ex) {
-				System.out.println("Votre IP ne respecte pas le format reconnu. Reessayez une autre");
-			}
-		}
-
-		while (true) {
-			System.out.println("Fournissez svp le port d ecoute");
-
-			try {
-				port = userInput.nextInt();
-				if (port <= 5050 && port >= 5000) {
-					System.out.println("Ce port est valide: Merci");
-					break;
-				} else
-					System.out.println("Le port doit etre compris entre 5000 et 5050 inclusivement, reessayez");
-			} catch (InputMismatchException e) {
-				System.out.println("Verifiez le format du port que vous avez entre, donnez en un autre: Merci");
-				userInput.next();
-			}
-		}
-
-		/*
-		 * =============================================================================
-		 * =========== CONNEXION AVEC LES CLIENTS ET GESTION DES THREADS POUR LA
-		 * TRANSFORMATION SOBEL DE L IMAGE
-		 * =============================================================================
-		 * ===========
-		 */
+		CheckingServer serverInfo = CheckingServer.getServerInfo();
 		ServerSocket listener = new ServerSocket();
 		listener.setReuseAddress(true);
-		listener.bind(new InetSocketAddress(serverAddressObj, port));
-		System.out.format("Information: Le serveur tourne sur: %s:%d%n", serverAddress, port);
-		// userInput.close();
+		listener.bind(new InetSocketAddress(serverInfo.address, serverInfo.port));
+		System.out.format("Information: Le serveur tourne sur: %s:%d%n", serverInfo.address.getHostAddress(), serverInfo.port);
 		try {
 			while (true) {
 				new ClientHandler(listener.accept()).start();
@@ -93,10 +46,6 @@ public class Server {
 
 	}
 
-	/*
-	 * Une thread qui se charge de traiter la demande de chaque client sur un socket
-	 * particulier
-	 */
 	private static class ClientHandler extends Thread {
 
 		private Socket socket;
@@ -106,9 +55,6 @@ public class Server {
 			this.socket = socket;
 		}
 
-		/*
-		 * Une thread se charge d envoyer au client un message de bienvenue
-		 */
 		public void run() {
 			try {
 				DataOutputStream out = new DataOutputStream(socket.getOutputStream());
@@ -125,9 +71,8 @@ public class Server {
 				try {
 					socket.close();
 				} catch (IOException e) {
-					System.out.println("Ne peut pas fermer la connexion. Qu est ce qui ne va pas?");
 				}
-				System.out.println("Connexion avec le client fermee");
+				System.out.println("Connexion avec le client " + user.username + " fermée");
 			}
 		}
 
@@ -152,14 +97,14 @@ public class Server {
 				String imageName = in.readUTF();
 				int imageSize = in.readInt();
 				byte[] imageArray = new byte[imageSize];
-				int nRead = 0;
-				int off = 0;
+				int dataRead = 0;
+				int offset = 0;
 				int sizeLeft = imageSize;
 				int packetSize = 5000;
-				while ((nRead = in.read(imageArray, off, packetSize)) > 0) {
-					sizeLeft -= nRead;
-					off += nRead;
-					System.out.println(nRead + " bytes Recieved....");
+				while ((dataRead = in.read(imageArray, offset, packetSize)) > 0) {
+					sizeLeft -= dataRead;
+					offset += dataRead;
+					System.out.println(" Reception d'image en cours, " + offset + "/" + imageSize + " packets recus...");
 					if(sizeLeft <= 5000) {
 						packetSize = sizeLeft;
 					}
@@ -169,8 +114,7 @@ public class Server {
 				String ipPort = socket.getRemoteSocketAddress().toString();
 				DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
 				Date date = new Date();
-				System.out.println("[" + user.username + " - " + ipPort + " - " + dateFormat.format(date) + "] Image " + imageName
-						+ " bien recue");
+				System.out.println("Traitement du client " + user.username + " - [ Port : " + ipPort + " ] - " + dateFormat.format(date) + " - Image " + imageName);
 
 				ByteArrayInputStream imgByteArray = new ByteArrayInputStream(imageArray);
 				BufferedImage imgBuff = ImageIO.read(imgByteArray);
@@ -184,9 +128,7 @@ public class Server {
 				
 				imageArray = imgSobelByteArray.toByteArray();
 				imageSize = imageArray.length;
-				
-				System.out.println("size de Nouveau image : " + imageSize);
-				
+			
 				out.writeInt(imageSize);
 				out.write(imageArray, 0, imageSize);
 

@@ -22,91 +22,20 @@ public class Client {
 	 * Application client
 	 */
 	public static void main(String[] args) throws Exception {
-		Socket socket = null;
-		String serverAddress; // i.e "127.0.0.1"
-		int port; // i.e 5000
-		InetAddress serverAddressObj;
-
-		User user = new User();
-
-		DataOutputStream out = null;
-		DataInputStream in = null;
-
+	
 		Scanner userInput = new Scanner(System.in);
-		boolean serverValid = false;
-		boolean userValid = false;
 
-		/*
-		 * ===================================================================
-		 * Informations sur le serveur founies par l utilisateur (IP address, port)
-		 * ===================================================================
-		 */
-		do {
-
-			while (true) {
-				System.out.println("Fournissez svp l addresse IP du serveur");
-				serverAddress = userInput.nextLine();
-
-				try {
-					serverAddressObj = InetAddress.getByName(serverAddress);
-					System.out.println("Cet IP est valide: Merci");
-					break;
-				} catch (UnknownHostException ex) {
-					System.out.println("Votre IP ne respecte pas le format reconnu. Reessayez une autre");
-				}
-			}
-
-			while (true) {
-				System.out.println("Fournissez svp le port d ecoute");
-				try {
-					port = userInput.nextInt();
-					if (port <= 5050 && port >= 5000) {
-						System.out.println("Ce port est valide: Merci");
-						break;
-					} else
-						System.out.println("Le port doit etre compris entre 5000 et 5050 inclusivement, reessayez");
-				} catch (InputMismatchException e) {
-					System.out.println("Verifiez le format du port que vous avez entre, donnez en un autre: Merci");
-					userInput.next();
-				}
-
-			}
-
-			try {
-				socket = new Socket(serverAddressObj, port);
-				//out = new ObjectOutputStream(socket.getOutputStream());
-				out = new DataOutputStream(socket.getOutputStream());
-				serverValid = true;
-			} catch (IOException e) {
-				userInput.nextLine();
-				System.out.println("Serveur introuvable");
-			}
-		} while (!serverValid);
-
-		/*
-		 * ========================================================== INFORMATIONS SUR
-		 * L'UTILISATEUR (username, et mot de passe)
-		 * ==========================================================
-		 */
-
-		do {
-			userInput.nextLine();
-			System.out.println("Svp, bien vouloir fournir votre nom d utilisateur :");
-			user.username = userInput.next();
-			System.out.println("Svp, bien vouloir fournir votre mot de passe :");
-			user.password = userInput.next();
-
-			out.writeUTF(user.username + ":" + user.password);
-			in = new DataInputStream(socket.getInputStream());
-
-			userValid = in.readBoolean();
-
-			if (!userValid) {
-				userInput.nextLine();
-				System.out.println("Combinaison du nom d'utilisateur et mot passe incorrecte");
-			}
-
-		} while (!userValid);
+		Socket socket = CheckingServer.ValidateSoket();
+		
+		DataOutputStream out = new DataOutputStream(socket.getOutputStream());
+		
+		DataInputStream in = new DataInputStream(socket.getInputStream());
+		
+		if(!CheckingServer.ValidateUser(out, in)) {
+			System.out.println("Combinaison du nom d'utilisateur et mot passe incorrecte, bye");
+			socket.close();
+			return;
+		}
 
 		/*
 		 * ========================================================= CONNEXION -
@@ -122,35 +51,43 @@ public class Client {
 					"============================================================================================");
 			System.out.println("Svp, bien vouloir fournir le nom de l image a traiter sous la forme nom_image.jpg) : ");
 			
-			//Envoi du nom de l'image
-			String nomImage = userInput.nextLine();
+			
+			boolean imageCorrect = false;
+			String nomImage = null;
+			byte[] imgByte = null;
+			do {
+				try {
+					nomImage = userInput.nextLine();
+					File img = new File(nomImage);
+					imgByte = Files.readAllBytes(img.toPath());
+					imageCorrect = true;
+				} catch (Exception e) {
+					System.out.println(" Image introuvable, bien vouloir fournir le nom de l image a traiter sous la forme nom_image.jpg");
+				}
+			} while (!imageCorrect);
+			
 			out.writeUTF(nomImage);
-			
-			
-			//Envoi de la taille
-			File img = new File(nomImage);
-			byte[] imgByte = Files.readAllBytes(img.toPath());
 			out.writeInt(imgByte.length);
-			
-			//Envoi de l'image sous forme de byte
 			out.write(imgByte, 0, imgByte.length);
 			
 			
-			// Recuper l'image modifié
+			// Get Image
 			int size = in.readInt();
 			byte[] imageArray = new byte[size];
-			int nRead = 0;
-			int off = 0;
+			int dataRead = 0;
+			int offset = 0;
 			int sizeLeft = size;
 			int packetSize = 5000;
-			while ((nRead = in.read(imageArray, off, packetSize)) > 0) {
-				sizeLeft -= nRead;
-				off += nRead;
-				System.out.println(nRead + " bytes Recieved....");
+			while ((dataRead = in.read(imageArray, offset, packetSize)) > 0) {
+				sizeLeft -= dataRead;
+				offset += dataRead;
+				System.out.println(" Reception d'image en cours, " + offset + "/" + size + " packets recus...");
 				if(sizeLeft <= 5000) {
 					packetSize = sizeLeft;
 				}
 			}
+			
+			
 			
 			System.out.println("Votre image a ete traitee avec succes, veuillez donner un nom pour l'image");
 			String newImageName = userInput.nextLine();
@@ -162,15 +99,16 @@ public class Client {
 			ImageIO.write(imageTransformeeSobel, extension, new File(newImageName + "." + extension));
 			System.out.println("Bien vouloir recuperer votre image traitee dans le meme dossier que l image originale ");
 			System.out.println("Rappel: le nom de l image traitee est : " + newImageName + "." + extension);
-			
-			
 			socket.close();
 
 		} catch (UnknownHostException e) {
 			e.printStackTrace();
 		} catch (IOException e) {
-			e.printStackTrace();
+			System.out.println("Une erreur est survenue lors du traitement d'image, veuillez re-essayer plus tard, bye");
+			socket.close();
 		}
 	}
+	
+	
 
 }
